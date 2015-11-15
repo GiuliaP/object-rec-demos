@@ -1,10 +1,6 @@
 #ifndef CAFFEFEATEXTRACTOR_H_
 #define CAFFEFEATEXTRACTOR_H_
 
-// CUDA-C includes
-#include <cuda.h>
-#include <cuda_runtime.h>
-
 // Boost
 #include "boost/algorithm/string.hpp"
 #include "boost/make_shared.hpp"
