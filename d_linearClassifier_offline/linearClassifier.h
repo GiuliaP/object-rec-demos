@@ -45,8 +45,9 @@ class linearClassifier
     // Learning variables
 
     int bufferSize;
-    double minVotePercentage;
-    int useWeightedClassification;
+    double voteThreshold;
+    int weightedClassification;
+    bool newGURLSinterface;
 
     // GURLS variables
 
@@ -67,21 +68,37 @@ class linearClassifier
 
 public:
 
-    linearClassifier(string rootPath, int _bufferSize, double minVotePercentage, bool _weighted);
+    linearClassifier(string rootPath, int _bufferSize, int voteThreshold, bool _weighted, bool _newInterface);
 
     bool importFeatures(string inputPath, string objName);
  
     bool trainClassifiers();
 
-    bool recognize(string inputPath);
+    bool recognize(string inputPath, vector <string> &outputPred, vector <vector<double> > &outputScores, vector <string > &scoresOrder);
 
     bool forgetClass(string className, bool retrain=true);
 
-    bool forgetAll();
+    bool forgetAll(bool retrain=true);
 
     bool releaseModels();
 
     bool getClassList(vector <string> &list);
+
+    bool set_bufferSize (int bsize);
+
+    bool set_voteThreshold (int thresh);
+
+    bool set_weightedClassification (bool weighted);
+
+    bool set_newGURLSinterface (bool setnew);
+
+    int get_bufferSize ();
+
+    int get_voteThreshold ();
+
+    bool get_weightedClassification ();
+
+    bool get_newGURLSinterface ();
 
 };
 

@@ -26,8 +26,8 @@ class  RLSlinear
 
         RLSlinear(string className);
 
-        void trainModel(gurls::gMat2D<float> &X, gurls::gMat2D<float> &Y);
-        float predictModel(gurls::gMat2D<float> &X);
+        void trainModel(gurls::gMat2D<float> &X, gurls::gMat2D<float> &Y, bool newGURLS);
+        float predictModel(gurls::gMat2D<float> &X, bool newGURLS);
 
         void freeModel();
 

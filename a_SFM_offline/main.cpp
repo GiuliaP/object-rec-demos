@@ -1,35 +1,15 @@
-/*
-Copyright 2011. All rights reserved.
-Institute of Measurement and Control Systems
-Karlsruhe Institute of Technology, Germany
-
-This file is part of libelas.
-Authors: Andreas Geiger
-
-libelas is free software; you can redistribute it and/or modify it under the
-terms of the GNU General Public License as published by the Free Software
-Foundation; either version 3 of the License, or any later version.
-
-libelas is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along with
-libelas; if not, write to the Free Software Foundation, Inc., 51 Franklin
-Street, Fifth Floor, Boston, MA 02110-1301, USA 
-*/
+// std::system includes
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <iostream>
-#include <string>
-#include <sstream>
-#include <iomanip>
-#include <stdexcept>
 #include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
 
-// OpenCV
+// OpenCV includes
+
 #include <opencv/highgui.h>
 #include <opencv/cv.h>
 
@@ -37,15 +17,18 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/features2d/features2d.hpp>
-#include "opencv2/gpu/gpu.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
+
+// Boost includes
 
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/classification.hpp>
+#include <boost/filesystem.hpp>
+
+// Project includes
 
 #include "elasWrapper.h"
 
-using namespace cv;
 using namespace std;
 
 bool loadExtrinsics(Mat& Ro, Mat& To)
@@ -126,188 +109,185 @@ bool loadIntrinsics(Mat &KL, Mat &KR, Mat &DistL, Mat &DistR)
     return true;
 }
 
-int64 workBegin()
-{
-	return getTickCount();
-}
-
-double workEnd(int64 work_begin)
-{
-    int64 d = getTickCount() - work_begin;
-    double f = getTickFrequency();
-    double work_time = d / f;
-    return work_time;
-}
-
 string text(double value)
 {
     stringstream ss;
-    ss << setiosflags(ios::left)
-        << setprecision(4) << value;
+    ss << setiosflags(ios::left) << setprecision(4) << value;
     return ss.str();
 }
 
 int main (int argc, char** argv) {
 
-	  // registry of images
+    // Working directory containing the images and the results
+    string root_dir = "/media/giulia/DATA/demoDay";
 
-	  /*string root_dir = "/media/giulia/DATA/humanoids2015/dumpings/bbball2/SFM_rect_imgs";
+    // Choose the categories, object instances and train/test sets from which extract the disparity
 
-	  string out_root_dir = "/media/giulia/DATA/humanoids2015/dumpings/bbball2/SFM_disp_offline";
+    vector <string> categories;
+    categories.push_back("mug");
+    categories.push_back("flower");
+    categories.push_back("book");
 
-	  string registry_file_left = "/media/giulia/DATA/humanoids2015/dumpings/bbball2/SFM_rect_imgs/left.txt";
-	  string registry_file_right = "/media/giulia/DATA/humanoids2015/dumpings/bbball2/SFM_rect_imgs/right.txt";*/
+    vector <string> objnumbers;
+    objnumbers.push_back("1");
+    objnumbers.push_back("2");
+    objnumbers.push_back("3");
+    objnumbers.push_back("4");
+    objnumbers.push_back("5");
 
-	  /*string root_dir = "/media/giulia/DATA/disparity_data_tmp/dumping/SFM/SFM_rect_imgs";
+    vector <string> sets;
+    sets.push_back("train");
+    sets.push_back("test");
 
-	  string out_root_dir = "/media/giulia/DATA/disparity_data_tmp/dumping/SFM";
+    // No need to change beyond this line if the folder tree of the dataset is formatted correctly
 
-	  string registry_file_left = "/media/giulia/DATA/disparity_data_tmp/dumping/SFM/SFM_rect_imgs/left.txt";
-	  string registry_file_right = "/media/giulia/DATA/disparity_data_tmp/dumping/SFM/SFM_rect_imgs/right.txt";*/
+    string image_dir = root_dir + "/images";
+    string in_dir = image_dir;
+    string out_dir = root_dir + "/disp";
 
-      string root_dir = "/media/giulia/DATA/ICUBWORLD_ULTIMATE/iCubWorldUltimate_finaltree/mug/mug1/ROT2D/day5";
+    // IO extentions
 
-	  string out_root_dir = "/media/giulia/DATA/demoDay/disp/mug";
+    string in_ext = ".jpg";
+    string out_ext = in_ext;
 
-	  string registry_file = "/media/giulia/DATA/ICUBWORLD_ULTIMATE/iCubWorldUltimate_finaltree/mug/mug1/ROT2D/day5/img_info_LR.txt";
+    // LIBELAS setup parameters
 
-	  /*string root_dir = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_rect_imgs";
+    string elas_string = "MIDDLEBURY";
+    double disp_scaling_factor = 1.0;
 
-	  string out_root_dir = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_disp_offline";
+    elasWrapper *elaswrap = new elasWrapper(disp_scaling_factor, elas_string);
 
-	  string registry_file_left = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_rect_imgs/left_mug3.txt";
-	  string registry_file_right = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_rect_imgs/right_mug3.txt";*/
+    elaswrap->set_postprocess_only_left(true);
+    elaswrap->set_subsampling(false);
+    elaswrap->set_add_corners(true);
+    elaswrap->set_ipol_gap_width(20);
 
-	  //string registry_file_left = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_rect_imgs/left_octo.txt";
-	  //string registry_file_right = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_rect_imgs/right_octo.txt";
+    cout << endl << "ELAS parameters:" << endl << endl;
+    cout << "disp_scaling_factor: " << disp_scaling_factor << endl;
+    cout << "setting: " << elas_string << endl;
+    cout << "postprocess_only_left: " << elaswrap->get_postprocess_only_left() << endl;
+    cout << "subsampling: " << elaswrap->get_subsampling() << endl;
+    cout << "add_corners: " << elaswrap->get_add_corners() << endl;
+    cout << "ipol_gap_width: " << elaswrap->get_ipol_gap_width() << endl << endl;
 
-	  //string registry_file_left = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_rect_imgs/left_squeezer.txt";
-	  //string registry_file_right = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_rect_imgs/right_squeezer.txt";
+    // Load camera parameters
 
-	  vector<string> registry_left;
-	  vector<string> registry_right;
-	  vector<string> registry_out;
+    cv::Mat map11, map12, map21, map22;
+    cv::Mat Kleft, Kright, DistL, DistR, RLrect, RRrect, PLrect, PRrect;
+    cv:Mat R0, T0, Q;
 
-	  ifstream infile;
-	  string line;
+    loadIntrinsics(Kleft,Kright,DistL,DistR);
+    loadExtrinsics(R0,T0);
 
-	  infile.open (registry_file.c_str());
+    Mat zeroDist = Mat::zeros(1,8,CV_64FC1);
 
-	  getline(infile,line);
-	  cout << line << endl;
-	  while(!infile.eof())
-	  {
-	      // extract left and right image names
-	      vector <string> tokens;
+    // Go!!
 
-	      split(tokens, line, boost::is_any_of(" "));
+    for (int c=0; c<categories.size(); c++)
+    {
+        string category = categories[c];
 
-	      string left_imgname = tokens[5].substr(0, tokens[5].size()-4) + ".jpg";
-	      string right_imgname = tokens[0].substr(0, tokens[0].size()-4) + ".jpg";
+        for (int o=0; o<objnumbers.size(); o++)
+        {
+            string objnumber = objnumbers[o];
 
-		  registry_left.push_back("/left/" + left_imgname);
-		  registry_right.push_back("/right/" + right_imgname);
-		  registry_out.push_back("/" + left_imgname);
+            for (int s=0; s<sets.size(); s++)
+            {
+                string set = sets[s];
 
-	      getline(infile,line);
-	      cout << line << endl;
-	  }
-	  infile.close();
+                string registry_file = image_dir + "/" + category + "/" + category + objnumber + "/" + set + "/img_info_LR.txt";
 
-	  int num_images = registry_left.size();
+                vector<string> registry_left;
+                vector<string> registry_right;
+                vector<string> registry_out;
 
-	  // ELAS setup
+                ifstream infile;
+                string line;
+                infile.open (registry_file.c_str());
 
-	   string elas_string = "MIDDLEBURY";
+                getline(infile,line);
+                while(!infile.eof())
+                {
+                    // Extract left and right image names from the registry
 
-	   double disp_scaling_factor = 1.0;
+                    vector <string> tokens;
+                    split(tokens, line, boost::is_any_of(" "));
+                    string left_imgname = tokens[5].substr(0, tokens[5].size()-4);
+                    string right_imgname = tokens[0].substr(0, tokens[0].size()-4);
 
-	   elasWrapper *elaswrap = new elasWrapper(disp_scaling_factor, elas_string);
+                    registry_left.push_back("left/" + left_imgname);
+                    registry_right.push_back("right/" + right_imgname);
 
-	   elaswrap->set_postprocess_only_left(true);
+                    // We choose to call the output disparity as the left image
+                    registry_out.push_back(right_imgname);
 
-	   elaswrap->set_subsampling(false);
+                    getline(infile,line);
+                }
+                infile.close();
 
-	   elaswrap->set_add_corners(true);
+                int num_images = registry_left.size();
 
-	   elaswrap->set_ipol_gap_width(20);
+                cout << "Found " << num_images << " images for " << category + objnumber << ": " << set << endl;
 
+                // Output preparation
 
-	   cout << endl << "ELAS parameters:" << endl << endl;
+                if (boost::filesystem::exists(out_dir + "/" + category + "/" + category + objnumber + "/" + set)==false)
+                    boost::filesystem::create_directories(out_dir + "/" + category + "/" + category + objnumber + "/" + set);
 
-	   cout << "disp_scaling_factor: " << disp_scaling_factor << endl;
+                // Input matrices
+                cv::Mat imL, imR;
 
-	   cout << "setting: " << elas_string << endl;
+                // Auxiliary and output matrices
+                cv::Mat disp_elas, map_elas;
 
-	   cout << "postprocess_only_left: " << elaswrap->get_postprocess_only_left() << endl;
+                for (int i=0; i<num_images; i++)
+                {
 
-	   cout << "subsampling: " << elaswrap->get_subsampling() << endl;
+                    // Read image pair
 
-	   cout << "add_corners: " << elaswrap->get_add_corners() << endl;
+                    imL = cv::imread(in_dir + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_left[i] + in_ext);
+                    imR = cv::imread(in_dir + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_right[i] + in_ext);
 
-	   cout << "ipol_gap_width: " << elaswrap->get_ipol_gap_width() << endl;
+                    int numberOfDisparities = (imL.cols<=320)?96:128;;
 
-	   cout << endl;
+                    // Rectify image pair
 
-	  // input
+                    cv::Mat img1r, img2r;
+                    Size img_size = imL.size();
+                    cv::stereoRectify(Kleft, zeroDist, Kright, zeroDist, img_size, R0, T0, RLrect, RRrect, PLrect, PRrect, Q, -1);
+                    cv::initUndistortRectifyMap(Kleft, zeroDist, RLrect, PLrect, img_size, CV_32FC1, map11, map12);
+                    cv::initUndistortRectifyMap(Kright,  zeroDist, RRrect, PRrect, img_size, CV_32FC1, map21, map22);
+                    cv::remap(imL, img1r, map11, map12, cv::INTER_LINEAR);
+                    cv::remap(imR, img2r, map21, map22, cv::INTER_LINEAR);
 
-	  cv::Mat imL, imR;
+                    // Visualize rectified images
 
-	  // ELAS
+                    namedWindow("RectL", CV_WINDOW_AUTOSIZE );
+                    imshow("RectL", img1r );
+                    namedWindow("RectR", CV_WINDOW_AUTOSIZE );
+                    imshow("RectR", img2r );
 
-	  cv::Mat disp_elas, map_elas;
+                    // Compute disparity
 
-	  cv::Mat map11, map12, map21, map22;
-	  cv::Mat Kleft, Kright, DistL, DistR, RLrect, RRrect, PLrect, PRrect;
-	  cv:Mat R0, T0, Q;
+                    elaswrap->compute_disparity(img1r, img2r, disp_elas, numberOfDisparities);
+                    map_elas = disp_elas * (255.0 / numberOfDisparities);
+                    map_elas.convertTo(map_elas, CV_8UC1);
 
-	  loadIntrinsics(Kleft,Kright,DistL,DistR);
-	  loadExtrinsics(R0,T0);
+                    // Visualize disparity
 
-	  Mat zeroDist=Mat::zeros(1,8,CV_64FC1);
+                    cv::namedWindow( "ELAS", cv::WINDOW_AUTOSIZE);
+                    cv::imshow( "ELAS", map_elas );
+                    cv::waitKey(1);
 
-	  for (int i=0; i<num_images; i++)
-	  {
+                    // Save disparity
 
-		  imL = cv::imread(root_dir + registry_left[i]);
-		  imR = cv::imread(root_dir + registry_right[i]);
+                    cv::cvtColor(map_elas, map_elas, CV_GRAY2BGR);
+                    cv::imwrite(out_dir + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_out[i] + out_ext, map_elas);
 
-		  cout << root_dir + registry_left[i] << endl;
+                }
+            }
+        }
+    }
 
-		  int numberOfDisparities = (imL.cols<=320)?96:128;;
-
-		  cv::Mat img1r, img2r;
-
-		  Size img_size = imL.size();
-
-		  cv::stereoRectify(Kleft, zeroDist, Kright, zeroDist, img_size, R0, T0, RLrect, RRrect, PLrect, PRrect, Q, -1);
-
-		  cv::initUndistortRectifyMap(Kleft, zeroDist, RLrect, PLrect, img_size, CV_32FC1, map11, map12);
-		  cv::initUndistortRectifyMap(Kright,  zeroDist, RRrect, PRrect, img_size, CV_32FC1, map21, map22);
-
-		  cv::remap(imL, img1r, map11, map12, cv::INTER_LINEAR);
-		  cv::remap(imR, img2r, map21, map22, cv::INTER_LINEAR);
-
-		  namedWindow("RectL", CV_WINDOW_AUTOSIZE );
-		  imshow("RectL", img1r );
-
-		  namedWindow("RectR", CV_WINDOW_AUTOSIZE );
-		  imshow("RectR", img2r );
-
-		  elaswrap->compute_disparity(img1r, img2r, disp_elas, numberOfDisparities);
-
-		  map_elas = disp_elas * (255.0 / numberOfDisparities);
-		  map_elas.convertTo(map_elas, CV_8UC1);
-
-		  cv::namedWindow( "ELAS", cv::WINDOW_AUTOSIZE);
-		  cv::imshow( "ELAS", map_elas );
-
-		  cv::waitKey(1);
-
-		  cv::cvtColor(map_elas, map_elas, CV_GRAY2BGR);
-		  cv::imwrite(out_root_dir + registry_out[i], map_elas);
-
-	  }
-
-  return 0;
+    return 0;
 }

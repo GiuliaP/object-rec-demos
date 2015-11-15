@@ -1,9 +1,10 @@
 // std::system includes
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <iostream>
 #include <fstream>
-
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,7 @@
 
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/classification.hpp>
+#include <boost/filesystem.hpp>
 
 // Project includes
 
@@ -31,190 +33,224 @@ using namespace std;
 int main(int argc, char **argv)
 {
 
-    ////////////////////////////////////////////////////////////////////////////////
-    // nearBlobber Initialization
-    ////////////////////////////////////////////////////////////////////////////////
+    // Working directory containing the images and the results
+    string root_dir = "/media/giulia/DATA/demoDay";
+
+    // Choose the categories, object instances and train/test sets from which extract the disparity
+
+    vector <string> categories;
+    categories.push_back("mug");
+    categories.push_back("flower");
+    categories.push_back("book");
+
+    vector <string> objnumbers;
+    objnumbers.push_back("1");
+    objnumbers.push_back("2");
+    objnumbers.push_back("3");
+    objnumbers.push_back("4");
+    objnumbers.push_back("5");
+
+    vector <string> sets;
+    sets.push_back("train");
+    sets.push_back("test");
+
+    // No need to change beyond this line if the folder tree of the dataset is formatted correctly
+
+    string image_dir = root_dir + "/images";
+    string in_dir = root_dir + "/disp";
+
+    string out_dir_txtdata = root_dir + "/txtdata";
+    string out_dir_bmask = root_dir + "/binary_mask";
+    string out_dir_visualization = root_dir + "/visualization";
+    string out_dir_crop = root_dir + "/crop";
+
+    // IO extentions
+
+    string in_ext = ".jpg";
+    string out_ext = in_ext;
+
+    // dispBlobber setup parameters
 
 	int imH = 480;
 	int imW = 640;
 
-    int _margin = 40;
+	//string cropMethod = "centroid";
+	string cropMethod = "bbox";
 
-    int _backgroundThresh = 30;
-    int _frontThresh = 190;
-    //double _cannyThresh = 20;
+    int cropMargin = 40;
+    int cropRadius = 127;
 
-    int _minBlobSize = 1300;
-    int _gaussSize = 5;
+    int backgroundThresh = 30;
 
-    int _dispThreshRatioLow = 10;
-    int _dispThreshRatioHigh = 20;
+    int minBlobSize = 1300;
+    int gaussSize = 5;
 
-    // nearBlobber class declaration
-    nearBlobber *blob_extractor;
-
-    bool _timing = true;
+    int dispThreshRatioLow = 10;
+    int dispThreshRatioHigh = 20;
 
     int centroidBufferSize = 3;
 
-    // nearBlobber class instantiation
-    blob_extractor = NULL;
-    blob_extractor = new nearBlobber(imH, imW, centroidBufferSize,
-    		_margin,
-    		_backgroundThresh, _frontThresh,
-    		_minBlobSize, _gaussSize,
-    		_dispThreshRatioLow, _dispThreshRatioHigh);
+    dispBlobber *blob_extractor = new dispBlobber(imH, imW, centroidBufferSize,
+    		backgroundThresh,
+    		minBlobSize, gaussSize,
+    		dispThreshRatioLow, dispThreshRatioHigh);
 
-    ////////////////////////////////////////////////////////////////////////////////
-    // Registry preparation
-    ////////////////////////////////////////////////////////////////////////////////
+    // For visualization
 
-    /*string root_dir = "/media/giulia/DATA/humanoids2015/dumpings/dumping_humanoids_640objects/candybottle/SFM_disp_offline/dispSGBM";
+    cv::Scalar blue = cv::Scalar(255,0,0);
+    cv::Scalar green = cv::Scalar(0,255,0);
+    cv::Scalar red = cv::Scalar(0,0,255);
+    cv::Scalar white = cv::Scalar(255,255,255);
 
-    string out_dir_blobs = "/media/giulia/DATA/humanoids2015/dumpings/dumping_humanoids_640objects/candybottle/nearBlobber_blobs_offline/blobsSGBM_notime";
-    string out_dir_opt = "/media/giulia/DATA/humanoids2015/dumpings/dumping_humanoids_640objects/candybottle/nearBlobber_opt_offline/optSGBM_notime";
+    // Go!!
 
-    string registry_file = "/media/giulia/DATA/humanoids2015/dumpings/dumping_humanoids_640objects/candybottle/SFM_rect_imgs/left.txt";*/
-
-    string image_dir = "/media/giulia/DATA/ICUBWORLD_ULTIMATE/iCubWorldUltimate_finaltree/mug/mug1/ROT2D/day5/left";
-
-    string root_dir = "/media/giulia/DATA/demoDay/disp/mug";
-
-    string out_dir_blobs = "/media/giulia/DATA/demoDay/blob/mug";
-    string out_dir_opt = "/media/giulia/DATA/demoDay/binary_mask/mug";
-    string out_dir_roi = "/media/giulia/DATA/demoDay/roi/mug";
-    string out_dir_segm = "/media/giulia/DATA/demoDay/segm/mug";
-
-    string registry_file = "/media/giulia/DATA/ICUBWORLD_ULTIMATE/iCubWorldUltimate_finaltree/mug/mug1/ROT2D/day5/img_info_LR.txt";
-
-    /*string root_dir = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_disp_offline/ELAS_notime/squeezer";
-
-    string image_dir = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_rect_imgs/SFM_rectleft_rgb_selected/squeezer";
-
-    string out_dir_blobs = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/nearBlobber_blobs_offline/ELAS_notime/squeezer";
-    string out_dir_opt = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/nearBlobber_opt_offline/ELAS_notime/squeezer";
-    string out_dir_roi = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/nearBlobber_roi_offline/ELAS_notime/squeezer";
-    string out_dir_segm = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/nearBlobber_segm_offline/ELAS_notime/squeezer";
-
-    string registry_file = "/media/giulia/DATA/humanoids2015/dumpings/applications/onthefly/SFM_rect_imgs/left_squeezer.txt";*/
-
-    vector<string> registry;
-
-    ifstream infile;
-    string line;
-
-    infile.open (registry_file.c_str());
-
-    getline(infile,line);
-    cout << line << endl;
-    while(!infile.eof())
+    for (int c=0; c<categories.size(); c++)
     {
-        vector <string> tokens;
+        string category = categories[c];
 
-        split(tokens, line, boost::is_any_of(" "));
+        for (int o=0; o<objnumbers.size(); o++)
+        {
+            string objnumber = objnumbers[o];
 
-        string disp_imgname = tokens[5].substr(0, tokens[5].size()-4) + ".jpg";
+            for (int s=0; s<sets.size(); s++)
+            {
+                string set = sets[s];
 
-        registry.push_back(disp_imgname);
+                string registry_file = image_dir + "/" + category + "/" + category + objnumber + "/" + set + "/img_info_LR.txt";
 
-    	getline(infile,line);
-    	cout << line << endl;
+                vector<string> registry_right;
+                vector <string> registry_left;
+
+                ifstream infile;
+                string line;
+                infile.open (registry_file.c_str());
+
+                getline(infile,line);
+                while(!infile.eof())
+                {
+
+                    vector <string> tokens;
+                    split(tokens, line, boost::is_any_of(" "));
+
+                    string left_imgname = tokens[5].substr(0, tokens[5].size()-4);
+                    string right_imgname = tokens[0].substr(0, tokens[0].size()-4);
+
+                    registry_left.push_back(left_imgname);
+                    registry_right.push_back(right_imgname);
+
+                    getline(infile,line);
+
+                }
+                infile.close();
+
+                int numImages = registry_left.size();
+
+                cout << "Found " << numImages << " images for " << category + objnumber << ": " << set << endl;
+
+                // Output preparation
+
+                if (boost::filesystem::exists(out_dir_txtdata + "/" + category + "/" + category + objnumber + "/" + set)==false)
+                    boost::filesystem::create_directories(out_dir_txtdata + "/" + category + "/" + category + objnumber + "/" + set);
+
+                if (boost::filesystem::exists(out_dir_crop + "/" + category + "/" + category + objnumber + "/" + set)==false)
+                    boost::filesystem::create_directories(out_dir_crop + "/" + category + "/" + category + objnumber + "/" + set);
+
+                if (boost::filesystem::exists(out_dir_bmask + "/" + category + "/" + category + objnumber + "/" + set)==false)
+                    boost::filesystem::create_directories(out_dir_bmask + "/" + category + "/" + category + objnumber + "/" + set);
+
+                if (boost::filesystem::exists(out_dir_visualization + "/" + category + "/" + category + objnumber + "/" + set)==false)
+                    boost::filesystem::create_directories(out_dir_visualization + "/" + category + "/" + category + objnumber + "/" + set);
+
+                // Blob extraction
+
+                int countFails = 0;
+
+                ofstream outfile;
+                std::string out_filename = out_dir_txtdata + "/" + category + "/" + category + objnumber + "/" + set + "/centroid_bbox.txt";
+                outfile.open (out_filename.c_str());
+
+                for (int i = 0; i < numImages; i++)
+                {
+
+                    string disp_path = in_dir + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_right[i];
+                    cv::Mat disp = cv::imread(disp_path + in_ext);
+
+                    string image_path = image_dir + "/" + category + "/" + category + objnumber + "/" + set + "/left/" + registry_left[i];
+                    cv::Mat image = cv::imread(image_path + in_ext);
+
+                    std::vector<int> bbox;
+                    std::vector<int> centroid;
+                    cv::Mat bmask;
+
+                    double blobSize = blob_extractor->extractBlob(disp, bbox, centroid, bmask);
+
+                    if (blobSize<0)
+                        countFails++;
+
+                    // Visualization and output production
+
+                    // bmask
+
+                    cv::namedWindow("bmask", cv::WINDOW_AUTOSIZE);
+                    cv::imshow( "bmask", bmask );
+                    cv::imwrite(out_dir_bmask + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_right[i] + out_ext, bmask);
+
+                    // crop
+
+                    cv::Point tl;
+                    cv::Point br;
+
+                    if (cropMethod=="bbox")
+                    {
+                        tl = cv::Point(std::max(bbox[0]-cropMargin,0), std::max(bbox[1]-cropMargin,0));
+                        br = cv::Point( std::min(bbox[2]+cropMargin,image.cols-1), std::min(bbox[3]+cropMargin,image.rows-1));
+                    }
+                    else if (cropMethod=="centroid")
+                    {
+                        tl = cv::Point(std::max(centroid[0]-cropRadius,0), std::max(centroid[1]-cropRadius,0));
+                        br = cv::Point( std::min(centroid[0]+cropRadius,image.cols-1), std::min(centroid[1]+cropRadius,image.rows-1));
+                    }
+
+                    cv::Rect imBox(tl,br);
+
+                    cv::namedWindow("crop", cv::WINDOW_AUTOSIZE);
+                    cv::imshow( "crop", image(imBox) );
+                    cv::imwrite(out_dir_crop + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_right[i] + out_ext, image(imBox).clone());
+
+                    // txtdata
+
+                    for (int j=0; j<centroid.size(); j++)
+                        outfile << centroid[j] << "\t";
+                    for (int j=0; j<bbox.size(); j++)
+                        outfile << bbox[j] << "\t";
+                    outfile << std::endl;
+
+                    // disp
+
+                    cv::namedWindow("disp", cv::WINDOW_AUTOSIZE);
+                    cv::rectangle(disp, imBox, green, 2);
+                    cv::circle(disp, cv::Point(centroid[0], centroid[1]), 4, green, -1);
+                    cv::imshow( "disp", disp );
+
+                    // complete visualization
+
+                    cv::namedWindow("view", cv::WINDOW_AUTOSIZE);
+                    cv::rectangle(image, imBox, green, 2);
+                    cv::circle(image, cv::Point(centroid[0], centroid[1]), 4, green, -1);
+                    cv::imshow( "view", image );
+                    cv::imwrite(out_dir_visualization + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_right[i] + out_ext, image);
+
+                    cv::waitKey(100);
+
+                }
+
+                cout << "perc. missed frames: " << (float)countFails/(float)numImages << endl;
+
+                outfile.close();
+            }
+        }
     }
-    infile.close();
 
-    int num_images = registry.size();
-
-    ////////////////////////////////////////////////////////////////////////////////
-    // Blob extraction
-    ////////////////////////////////////////////////////////////////////////////////
-
-    std::vector<cv::Mat> buffer;
-    int buffer_size = 1;
-
-    std::vector< vector<int> > blobs;
-    std::vector< vector<int> > centroids;
-
-    int count_t = 0;
-    double count_time = 0.0;
-
-
-    for (int i = 0; i < num_images; i++)
-    {
-
-    	string image_path = root_dir + "/" + registry[i];
-    	cv::Mat img = cv::imread(image_path);
-
-    	buffer.push_back(img);
-
-    	if (buffer.size()>buffer_size)
-    	{
-    		buffer.erase(buffer.begin());
-    	}
-
-    	blobs.push_back(std::vector<int>());
-    	centroids.push_back(std::vector<int>());
-
-        cv::Mat opt;
-
-        double t[2];
-
-    	blob_extractor->extractBlob(buffer, blobs[i], centroids[i], opt, t);
-
-    	if (t[0]<0)
-    		count_t++;
-
-    	cout << t[0] << " " << count_t << endl;
-
-    	count_time += t[1];
-
-    	cout << t[1] << " " << count_time << endl;
-
-    	cv::imwrite(out_dir_opt + "/" + registry[i], opt);
-
-        cv::Mat originalimage = cv::imread(image_dir + "/" + registry[i]);
-
-        cv::Rect imBox(cv::Point(blobs[i][0],blobs[i][1]),cv::Point(blobs[i][2],blobs[i][3]));
-
-        cv::namedWindow("segm", cv::WINDOW_AUTOSIZE);
-        cv::imshow( "segm", originalimage(imBox) );
-        cv::Mat temp = originalimage(imBox).clone();
-        cv::imwrite(out_dir_segm + "/" + registry[i], temp);
-
-        cv::namedWindow("roi", cv::WINDOW_AUTOSIZE);
-        //cv::putText(originalimage, "look:squeezer", cv::Point(blobs[i][0],blobs[i][1]-5), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,0,255), 2.0);
-
-        cv::rectangle(originalimage, imBox, cv::Scalar(0,0,255), 2);
-        cv::imshow( "roi", originalimage );
-        cv::imwrite(out_dir_roi + "/" + registry[i], originalimage);
-
-        cv::waitKey(500);
-
-    }
-
-    cout << "perc. found blobs: " << (float)count_t/(float)num_images << endl;
-
-    cout << "avg. time: " << count_time/num_images << endl;
-
-    ////////////////////////////////////////////////////////////////////////////////
-    // Output production
-    ////////////////////////////////////////////////////////////////////////////////
-
-
-    ofstream outfile;
-    std::string out_filename = out_dir_blobs + "/" + "blobs.txt";
-
-    outfile.open (out_filename.c_str());
-
-    cout << centroids.size();
-    for (int i=0; i<centroids.size(); i++)
-    {
-    	for (int j=0; j<centroids[i].size(); j++)
-    	{
-    		outfile << centroids[i][j] << "\t";
-    	}
-    	outfile << std::endl;
-    }
-
-    outfile.close();
+ return 0;
 
 }

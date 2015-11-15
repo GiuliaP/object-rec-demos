@@ -31,15 +31,10 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include "opencv2/gpu/gpu.hpp"
-#include "opencv2/calib3d/calib3d.hpp"
 
-class nearBlobber
+class dispBlobber
 {
-
-	int margin;
-
 	int backgroundThresh;
-    int frontThresh;
 
     int minBlobSize;
     int gaussSize;
@@ -47,8 +42,6 @@ class nearBlobber
     int imageThreshRatioLow;
     int imageThreshRatioHigh;
     
-    cv::Scalar blue, green, red, white;
-
     cv::Mat aux, fillMask;
 
     std::vector<cv::Point2f > center2DcoordsBuffer;
@@ -62,16 +55,11 @@ class nearBlobber
 
 public:
 
-    nearBlobber(int imH, int imW, int _centroidBufferSize,
-    		int _margin,
-    		int _backgroundThresh, int _frontThresh,
-    		int _minBlobSize, int _gaussSize,
+    dispBlobber(int imH, int imW, int _bufferSize,
+    		int _backgroundThresh, int _minBlobSize, int _gaussSize,
     		int _dispThreshRatioLow, int _dispThreshRatioHigh);
 
-    bool setThresh(int low, int high);
-    bool setMargin(int mrg);
-
-   void extractBlob(std::vector<cv::Mat> &images, std::vector<int> &roi, std::vector<int> &centroid, cv::Mat &blob, double *t);
+   double extractBlob(cv::Mat &img, std::vector<int> &bbox, std::vector<int> &centroid, cv::Mat &bmask);
        
 };
 

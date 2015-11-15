@@ -1,11 +1,10 @@
-/* Example usage of the class CaffeFeatExtractor */
-
 // std::system includes
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <iostream>
 #include <fstream>
-
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -17,6 +16,13 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/features2d/features2d.hpp>
+
+// Boost includes
+
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/classification.hpp>
+#include <boost/filesystem.hpp>
 
 // Project includes
 
@@ -24,34 +30,66 @@
 
 using namespace std;
 
-int *pArgc = NULL;
-char **pArgv = NULL;
-
 int main(int argc, char **argv)
 {
 
-    ////////////////////////////////////////////////////////////////////////////////
-    // Caffe Initialization
-    ////////////////////////////////////////////////////////////////////////////////
+    // Working directory containing the images and the results
+    string root_dir = "/media/giulia/DATA/demoDay";
 
-    // Caffe class declaration
+    // Choose the categories, object instances and train/test sets from which extract the disparity
+
+    vector <string> categories;
+    categories.push_back("mug");
+    categories.push_back("flower");
+
+    vector <string> objnumbers;
+    objnumbers.push_back("1");
+    objnumbers.push_back("2");
+    objnumbers.push_back("3");
+    objnumbers.push_back("4");
+    objnumbers.push_back("5");
+
+    vector <string> sets;
+    sets.push_back("train");
+    sets.push_back("test");
+
+    // No need to change beyond this line if the folder tree of the dataset is formatted correctly
+
+    string image_dir = root_dir + "/images";
+    string in_dir = root_dir + "/crop";
+
+    // IO extentions
+
+    string in_ext = ".jpg";
+    string out_ext = ".txt";
+
+    // Caffe setup parameters
+
     CaffeFeatExtractor<float> *caffe_extractor;
 
-    // Binary file (.caffemodel) containing the pretrained network's weights
-    string pretrained_binary_proto_file;
-    //pretrained_binary_proto_file = "models/bvlc_reference_caffenet/bvlc_reference_caffenet.caffemodel";
-    pretrained_binary_proto_file = "/home/giulia/REPOS/caffe/models/bvlc_reference_caffenet/bvlc_reference_caffenet.caffemodel";
+    string modelName = "caffenet";
+    //string modelName = "googlenet";
 
-    cout << "Using pretrained network: " << pretrained_binary_proto_file << endl;
+    // Binary file (.caffemodel) containing the pretrained network's weights
+    string pretrained_binary_proto_file = "/home/giulia/REPOS/object-rec-demos/c_caffeCoder_offline/caffe_models/" + modelName + ".caffemodel";
 
     // Text file (.prototxt) defining the network structure
-    string feature_extraction_proto_file = "/home/giulia/REPOS/caffe_batch/imagenet_val.prototxt";
+    string feature_extraction_proto_file = "/home/giulia/REPOS/object-rec-demos/c_caffeCoder_offline/caffe_models/" + modelName + ".prototxt";
 
+    cout << "Using pretrained network: " << pretrained_binary_proto_file << endl;
     cout << "Using network defined in: " << feature_extraction_proto_file << endl;
 
     // Names of layers to be extracted
-    string extract_features_blob_names = "fc6,fc7,prob";
-    int num_features = 3;
+    string extract_features_blob_names = "prob";
+
+    // Output dirs
+    vector <string> out_dirs;
+    split(out_dirs, extract_features_blob_names, boost::is_any_of(","));
+    int numFeatures = out_dirs.size();
+    for (int d=0; d<numFeatures; d++)
+    {
+        out_dirs[d] = root_dir + "/" + modelName + "_" + out_dirs[d];
+    }
 
     // GPU or CPU mode
     string compute_mode = "GPU";
@@ -60,8 +98,9 @@ int main(int argc, char **argv)
 
     bool timing = true;
 
-    // Caffe class instantiation
-    caffe_extractor = NULL;
+    int batchSize = 1;
+    int batchSizeCaffe = 1;
+
     caffe_extractor = new CaffeFeatExtractor<float>(pretrained_binary_proto_file,
         		   feature_extraction_proto_file,
         		   extract_features_blob_names,
@@ -69,144 +108,98 @@ int main(int argc, char **argv)
         		   device_id,
         		   timing);
 
-    ////////////////////////////////////////////////////////////////////////////////
-    // Registry preparation
-    ////////////////////////////////////////////////////////////////////////////////
-
-    string root_dir = "/media/giulia/DATA/demoDay/segm/mug";
-
-    string registry_file = "/media/giulia/DATA/ICUBWORLD_ULTIMATE/iCubWorldUltimate_finaltree/mug/mug1/ROT2D/day5/img_info_LR.txt";
-
-    string extension = ".jpg";
-
-    vector<string> registry;
-
-    ifstream infile;
-    string line;
-
-    infile.open (registry_file.c_str());
-
-    getline(infile,line);
-    cout << line << endl;
-    while(!infile.eof())
+    for (int c=0; c<categories.size(); c++)
     {
-        vector <string> tokens;
+        string category = categories[c];
 
-        split(tokens, line, boost::is_any_of(" "));
+        for (int o=0; o<objnumbers.size(); o++)
+        {
+            string objnumber = objnumbers[o];
 
-        string crop_imgname = tokens[5].substr(0, tokens[5].size()-4);
+            for (int s=0; s<sets.size(); s++)
+            {
+                string set = sets[s];
 
-        registry.push_back(crop_imgname);
+                string registry_file = image_dir + "/" + category + "/" + category + objnumber + "/" + set + "/img_info_LR.txt";
 
-    	getline(infile,line);
-    	cout << line << endl;
-    }
-    infile.close();
+                vector<string> registry;
 
+                ifstream infile;
+                string line;
+                infile.open (registry_file.c_str());
 
-    int num_images = registry.size();
+                getline(infile,line);
+                while(!infile.eof())
+                {
 
-    cout << num_images << endl;
+                    vector <string> tokens;
+                    split(tokens, line, boost::is_any_of(" "));
+                    string crop_imgname = tokens[0].substr(0, tokens[0].size()-4);
 
-    ////////////////////////////////////////////////////////////////////////////////
-    // Feature extraction
-    ////////////////////////////////////////////////////////////////////////////////
+                    registry.push_back(crop_imgname);
 
-    int batch_size = 1;
-    int batch_size_caffe = 1;
+                    getline(infile,line);
 
-    if (num_images%batch_size!=0)
-    {
-    	batch_size = 1;
-    	cout << "WARNING main: image number is not multiple of batch size, setting it to 1 (low performance)" << endl;
-    }
-    int num_mini_batches = num_images/batch_size;
+                }
+                infile.close();
 
-    //vector< Blob<float>* > features;
-    vector< vector<float> > features;
-    //vector<float> features;
+                int numImages = registry.size();
 
-    string out_dir1 = "/media/giulia/DATA/demoDay/fc6/mug";
-    string out_dir2 = "/media/giulia/DATA/demoDay/fc7/mug";
-    string out_dir3 = "/media/giulia/DATA/demoDay/prob/mug";
+                cout << "Found " << numImages << " images for " << category + objnumber << ": " << set << endl;
 
-    ofstream outfile1, outfile2, outfile3;
-    string out_filename1, out_filename2, out_filename3;
+                // Output preparation
 
-    for (int batch_index = 0; batch_index < num_mini_batches; batch_index++)
-    {
+                for (int d=0; d<numFeatures; d++)
+                {
+                    if (boost::filesystem::exists(out_dirs[d] + "/" + category + "/" + category + objnumber + "/" + set)==false)
+                        boost::filesystem::create_directories(out_dirs[d] + "/" + category + "/" + category + objnumber + "/" + set);
+                }
 
-    	vector<cv::Mat> images;
-    	for (int i=0; i<batch_size; i++)
-    	{
-    	    string image_path = root_dir + "/" + registry[batch_index*batch_size + i] + extension;
-    	    cv::Mat img = cv::imread(image_path);
+                // Feature extraction
 
-    	    /*
-    	    cv::namedWindow( "image", cv::WINDOW_AUTOSIZE);
-    	    cv::imshow( "image", images[i] );
-    	    cv::waitKey(0);
-    	    */
+                if (numImages%batchSize!=0)
+                {
+                    batchSize = 1;
+                    cout << "WARNING main: image number is not multiple of batch size, setting to 1." << endl;
+                }
 
-    	    /*
-    	    const int img_height = img.rows;
-    	    const int img_width = img.cols;
-    	    const int crop_size = 227;
+                int numMiniBatches = numImages/batchSize;
 
-    	    int h_off = 0;
-    	    int w_off = 0;
-    	    h_off = (img_height - crop_size) / 2;
-    	    w_off = (img_width - crop_size) / 2;
+                vector< vector<float> > features;
+                vector<cv::Mat> images;
 
-    	    cout << h_off << " " << w_off << endl;
-    	    */
+                for (int batch_index = 0; batch_index < numMiniBatches; batch_index++)
+                {
+                    for (int i=0; i<batchSize; i++)
+                    {
+                        string crop_path = in_dir + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry[batch_index*batchSize + i] + in_ext;
+                        cv::Mat crop = cv::imread(crop_path);
+                        images.push_back(crop);
+                    }
 
-    	    //cvtColor(img, img, CV_BGR2RGB);
-    	    images.push_back(img);
-    	}
+                    caffe_extractor->extractBatch_multipleFeat_1D(images, batchSizeCaffe, features);
 
-    	caffe_extractor->extractBatch_multipleFeat_1D(images, batch_size_caffe, features);
+                    for (int i=0; i<batchSize; i++)
+                    {
+                        for (int d=0; d<numFeatures; d++)
+                        {
+                            string out_filename = out_dirs[d] + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry[batch_index*batchSize + i] + out_ext;
+                            ofstream outfile;
+                            outfile.open (out_filename.c_str());
 
-    	/*for (int i=0; i<images.size(); i++)
-    	{
-    		features.push_back(vector<float>());
-    		caffe_extractor->extract_singleFeat_1D(images[i], features[i]);
-    	}*/
+                            for (int j=0; j<features[i+d*batchSize].size(); j++)
+                                outfile << features[i+d*batchSize][j] << endl;
+                            outfile.close();
+                        }
+                    }
 
-    	for (int i=0; i<batch_size; i++)
-    	{
-    		out_filename1 = out_dir1 + "/" + registry[batch_index*batch_size + i] + ".txt";
-    		out_filename2 = out_dir2 + "/" + registry[batch_index*batch_size + i] + ".txt";
-    		out_filename3 = out_dir3 + "/" + registry[batch_index*batch_size + i] + ".txt";
+                    features.clear();
+                    images.clear();
+                }
 
-    		cout << out_filename1 << endl;
-
-    		outfile1.open (out_filename1.c_str());
-    		outfile2.open (out_filename2.c_str());
-    		outfile3.open (out_filename3.c_str());
-
-    		for (int j=0; j<features[i].size(); j++)
-    		{
-    			outfile1 << features[i][j] << endl;
-    		}
-    		for (int j=0; j<features[i+batch_size].size(); j++)
-    		{
-    			outfile2 << features[i+batch_size][j] << endl;
-    		}
-    		for (int j=0; j<features[i+2*batch_size].size(); j++)
-    		{
-    			outfile3 << features[i+2*batch_size][j] << endl;
-    			//cout <<  features[i+2*batch_size][j] << " ";
-    		}
-    		//cout << endl;
-
-    		outfile1.close();
-    		outfile2.close();
-    		outfile3.close();
-    	}
-
-
-    	features.clear();
+            }
+        }
     }
 
+    return 0;
 }

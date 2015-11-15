@@ -4,17 +4,21 @@
 
 using namespace gurls;
 
-linearClassifier::linearClassifier(string rootPath, int _bufferSize, double _minVotePercentage, bool _weighted)
+linearClassifier::linearClassifier(string rootPath, int _bufferSize, int _voteThreshold, bool _weighted, bool _newInterface)
 {
 
     currPath = rootPath;
 
     bufferSize = _bufferSize;
-    minVotePercentage = _minVotePercentage;
+    voteThreshold = (double)_voteThreshold/100.0;
 
-    useWeightedClassification = _weighted;
+    weightedClassification = _weighted;
 
+    newGURLSinterface = _newInterface;
+
+    cout << "Starting initial training..." << endl;
     trainClassifiers();
+    cout << endl << "Ready to begin!" << endl;
 
 }
 
@@ -61,7 +65,7 @@ bool linearClassifier::trainClassifiers()
             string name = knownObjects[idx_curr_obj].first;
             RLSlinear rlsmodel(name);
 
-            float pos_weight = useWeightedClassification?sqrt((float)(((float)n-Features[idx_curr_obj].size())/Features[idx_curr_obj].size())):1.0;
+            float pos_weight = weightedClassification?sqrt((float)(((float)n-Features[idx_curr_obj].size())/Features[idx_curr_obj].size())):1.0;
             float neg_weight = -1.0;
 
             // Fill positive labels for Y
@@ -85,7 +89,7 @@ bool linearClassifier::trainClassifiers()
 
             printf("[RLS] nClass: %d nPositive: %d nNegative: %d\n",int(knownObjects.size()),int(Features[idx_curr_obj].size()),n-int(Features[idx_curr_obj].size()));
 
-            rlsmodel.trainModel(X,Y);
+            rlsmodel.trainModel(X,Y, newGURLSinterface);
             linearClassifiers_RLS.push_back(rlsmodel);
             string tmpModelPath=currPath+"/"+knownObjects[idx_curr_obj].first+"/rlsmodel";
         }
@@ -202,7 +206,8 @@ bool linearClassifier::importFeatures(string inputPath, string objName)
     // Load features
 
     vector <string> fileList;
-    getdir(inputPath, fileList);
+    if (getdir(inputPath, fileList)==false)
+        return false;
 
     for (int i=0; i< fileList.size(); i++)
     {
@@ -342,7 +347,7 @@ bool linearClassifier::getdir(string dir, vector<string> &files)
     return true;
 }
 
-bool linearClassifier::recognize(string inputPath)
+bool linearClassifier::recognize(string inputPath, vector <string> &outputPred, vector <vector<double> > &outputScores, vector <string> &scoresOrder)
 {
 
     if (linearClassifiers_RLS.size()==0)
@@ -364,9 +369,9 @@ bool linearClassifier::recognize(string inputPath)
 
      int current = 0;
 
-     for (int i=0; i< fileList.size(); i++)
+     for (int f=0; f< fileList.size(); f++)
      {
-         if (fileList[i].compare(".") && fileList[i].compare(".."))
+         if (fileList[f].compare(".") && fileList[f].compare(".."))
          {
 
              // Read feature
@@ -374,7 +379,7 @@ bool linearClassifier::recognize(string inputPath)
              string line;
              vector<double> feature;
 
-             string fullPath = inputPath + "/" + fileList[i];
+             string fullPath = inputPath + "/" + fileList[f];
              ifstream infile;
              infile.open(fullPath.c_str());
 
@@ -408,20 +413,20 @@ bool linearClassifier::recognize(string inputPath)
                  feature_RLS(0,i) = feature[i];
              feature_RLS(0,feature.size()) = 1.0;
 
-             for(int i=0; i<linearClassifiers_RLS.size(); i++)
+             for(int k=0; k<linearClassifiers_RLS.size(); k++)
              {
-                 double value_RLS = linearClassifiers_RLS[i].predictModel(feature_RLS);
+                 double value_RLS = linearClassifiers_RLS[k].predictModel(feature_RLS, newGURLSinterface);
 
                  if(value_RLS>maxVal_RLS)
                  {
                      maxVal_RLS=value_RLS;
-                     idWin_RLS=i;
+                     idWin_RLS=k;
                  }
                  if(value_RLS<minValue_RLS)
                      minValue_RLS=value_RLS;
 
-                 bufferScores_RLS[current%bufferSize][i]=(value_RLS);
-                 countBuffer_RLS[current%bufferSize][i]=0;
+                 bufferScores_RLS[current%bufferSize][k]=(value_RLS);
+                 countBuffer_RLS[current%bufferSize][k]=0;
              }
              countBuffer_RLS[current%bufferSize][idWin_RLS]=1;
 
@@ -440,37 +445,40 @@ bool linearClassifier::recognize(string inputPath)
              int indexClass_RLS=-1;
              int indexMaxVote_RLS=-1;
 
-             for(int i =0; i<linearClassifiers_RLS.size(); i++)
+             for(int k=0; k<linearClassifiers_RLS.size(); k++)
              {
-                 avgScores_RLS[i]=avgScores_RLS[i]/bufferSize;
-                 if(avgScores_RLS[i]>maxValue_RLS)
+                 avgScores_RLS[k]=avgScores_RLS[k]/bufferSize;
+                 if(avgScores_RLS[k]>maxValue_RLS)
                  {
-                     maxValue_RLS=avgScores_RLS[i];
-                     indexClass_RLS=i;
+                     maxValue_RLS=avgScores_RLS[k];
+                     indexClass_RLS=k;
                  }
-                 if(bufferVotes_RLS[i]>maxVote_RLS)
+                 if(bufferVotes_RLS[k]>maxVote_RLS)
                  {
-                     maxVote_RLS=bufferVotes_RLS[i];
-                     indexMaxVote_RLS=i;
+                     maxVote_RLS=bufferVotes_RLS[k];
+                     indexMaxVote_RLS=k;
                  }
              }
 
              winnerClass_RLS = knownObjects[indexClass_RLS].first;
 
-             if (maxVote_RLS/bufferSize<minVotePercentage)
+             if (maxVote_RLS/bufferSize<voteThreshold)
                  winnerClass_RLS="?";
 
-             for(int i =0; i<linearClassifiers_RLS.size(); i++)
-             {
-                 cout << knownObjects[i].first.c_str() << ": ";
-                 cout << bufferScores_RLS[current%bufferSize][i];
-             }
-             cout << endl;
+             outputPred.push_back(winnerClass_RLS);
 
+             vector <double> scores;
+             for(int k=0; k<linearClassifiers_RLS.size(); k++)
+                scores.push_back(bufferScores_RLS[current%bufferSize][k]);
+             outputScores.push_back(scores);
+
+             current++;
          }
 
-         current++;
      }
+
+     for(int i =0; i<linearClassifiers_RLS.size(); i++)
+        scoresOrder.push_back(knownObjects[i].first.c_str());
 
      return true;
 
@@ -516,7 +524,7 @@ bool linearClassifier::forgetClass(string className, bool retrain)
     return true;
 }
 
-bool linearClassifier::forgetAll()
+bool linearClassifier::forgetAll(bool retrain)
 {
     bool success = checkKnownObjects();
     if (success==false)
@@ -524,7 +532,15 @@ bool linearClassifier::forgetAll()
 
     for (int i=0; i<knownObjects.size(); i++)
     {
+        cout << knownObjects[i].first << endl;
         success = forgetClass(knownObjects[i].first, false);
+        if (success==false)
+            return false;
+    }
+
+    if (retrain)
+    {
+        success = trainClassifiers();
         if (success==false)
             return false;
     }
@@ -548,4 +564,65 @@ bool linearClassifier::releaseModels()
             linearClassifiers_RLS[i].freeModel();
 
     return true;
+}
+
+bool linearClassifier::set_bufferSize(int bsize)
+{
+    if (bsize>0)
+    {
+        bufferSize = bsize;
+        cout << "bufferSize set to: " << bufferSize <<endl;
+        return true;
+    }
+    else
+        return false;
+}
+
+bool linearClassifier::set_voteThreshold(int thresh)
+{
+    if (thresh>=0 && thresh<=100)
+    {
+        voteThreshold = (double)thresh/100.0;
+        cout << "voteThreshold set to: " << voteThreshold <<endl;
+        return true;
+    }
+    else
+        return false;
+
+}
+
+bool linearClassifier::set_weightedClassification (bool weighted)
+{
+    weightedClassification = weighted;
+    cout << "weightedClassification set to: " << weightedClassification <<endl;
+    return true;
+}
+
+bool linearClassifier::set_newGURLSinterface (bool setnew)
+{
+    newGURLSinterface = setnew;
+    cout << "newGURLSinterface set to: " << newGURLSinterface <<endl;
+    forgetAll();
+
+    return true;
+}
+
+int linearClassifier::get_bufferSize ()
+{
+    return bufferSize;
+}
+
+int linearClassifier::get_voteThreshold ()
+{
+    return voteThreshold;
+}
+
+bool linearClassifier::get_weightedClassification ()
+{
+    return weightedClassification;
+}
+
+bool linearClassifier::get_newGURLSinterface ()
+{
+    return newGURLSinterface;
 }
