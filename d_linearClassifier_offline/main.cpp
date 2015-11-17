@@ -79,7 +79,26 @@ int main(int argc, char * argv[])
         std::istream_iterator<std::string> beg(buf), end;
         std::vector<std::string> tokens(beg, end);
 
-        if (tokens.size()==1 && tokens[0]=="quit")
+        if (tokens.size()==1 && tokens[0]=="help")
+        {
+            success = true;
+            reply = "Commands available: \n";
+            reply = reply + "quit: Quit the program.\n";
+            reply = reply + "set bufferSize [>0]: set the number of frames to average on for prediction.\n";
+            reply = reply + "set voteThreshold [0-100]: set the minimum percentage of frames in the buffer that must agree in the prediction.\n";
+            reply = reply + "set weightedClassification [0/1]: whether to weight the examples or not.\n";
+            reply = reply + "set newGURLSinterface [0/1]: whether to use the new wrappers or the usual pipeline.\n";
+            reply = reply + "get bufferSize: retrieve the parameter.\n";
+            reply = reply + "get voteThreshold: retrieve the parameter.\n";
+            reply = reply + "get weightedClassification: retrieve the parameter.\n";
+            reply = reply + "get newGURLSinterface: retrieve the parameter.\n";
+            reply = reply + "observe <category_objID> <label>: load in the database the features of the specified object.\n";
+            reply = reply + "train: train the classifiers.\n";
+            reply = reply + "test <category_objID> <label>: predict the features of the specified object and compute the accuracy considering the provided label as the true one.\n";
+            reply = reply + "forget all: forget all objects.\n";
+            reply = reply + "forget <label>: forget the specified class.\n";
+        }
+        else if (tokens.size()==1 && tokens[0]=="quit")
         {
             success = predictor.releaseModels();
             reply = "Bye bye!";
