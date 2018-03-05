@@ -34,25 +34,56 @@ int main(int argc, char **argv)
 {
 
     // Working directory containing the images and the results
-    string root_dir = "/media/giulia/DATA/demoDay";
+    string root_dir = "/data/DATASETS/iCubWorld";
 
     // Choose the categories, object instances and train/test sets from which extract the disparity
 
     vector <string> categories;
-    categories.push_back("mug");
-    categories.push_back("flower");
+    //categories.push_back("mug");
+    //categories.push_back("flower");
     categories.push_back("book");
+    categories.push_back("cellphone");
+    /*categories.push_back("mouse");
+    categories.push_back("pencilcase");
+    categories.push_back("ringbinder");
+    categories.push_back("hairbrush");
+    categories.push_back("hairclip");
+    categories.push_back("perfume");
+    categories.push_back("sunglasses");
+    categories.push_back("wallet");
+    categories.push_back("flower");
+    categories.push_back("glass");
+    categories.push_back("mug");
+    categories.push_back("remote");
+    categories.push_back("soapdispenser");
+    categories.push_back("bodylotion");
+    categories.push_back("ovenglove");
+    categories.push_back("sodabottle");
+    categories.push_back("sprayer");
+    categories.push_back("squeezer");*/
 
     vector <string> objnumbers;
     objnumbers.push_back("1");
     objnumbers.push_back("2");
-    objnumbers.push_back("3");
+    /*objnumbers.push_back("3");
     objnumbers.push_back("4");
     objnumbers.push_back("5");
+    objnumbers.push_back("6");
+    objnumbers.push_back("7");
+    objnumbers.push_back("8");
+    objnumbers.push_back("9");
+    objnumbers.push_back("10");*/
 
-    vector <string> sets;
-    sets.push_back("train");
-    sets.push_back("test");
+    vector <string> transformations;
+    transformations.push_back("ROT2D");
+    transformations.push_back("ROT3D");
+    /*transformations.push_back("TRANSL");
+    transformations.push_back("MIX");
+    transformations.push_back("SCALE");*/
+
+    vector <int> days;
+    days.push_back(1);
+    days.push_back(2);
 
     // No need to change beyond this line if the folder tree of the dataset is formatted correctly
 
@@ -69,7 +100,9 @@ int main(int argc, char **argv)
     string in_ext = ".jpg";
     string out_ext = in_ext;
 
-    // dispBlobber setup parameters
+    // dispBlobber setup parameters: 
+    // Gianma look here
+    // if segmentation is not good! 
 
 	int imH = 480;
 	int imW = 640;
@@ -112,11 +145,31 @@ int main(int argc, char **argv)
         {
             string objnumber = objnumbers[o];
 
-            for (int s=0; s<sets.size(); s++)
+            for (int t=0; t<transformations.size(); t++)
             {
-                string set = sets[s];
+                string transf = transformations[t];
 
-                string registry_file = image_dir + "/" + category + "/" + category + objnumber + "/" + set + "/img_info_LR.txt";
+                for (int d=0; d<days.size(); d++)
+                {
+                
+                     int daynumber_req = days[d];
+                     int daynumber;
+                     string day;
+                     string path_ss = image_dir + "/" + category + "/" + category + objnumber + "/" + transf;
+
+                     for (boost::filesystem::directory_iterator itr(path_ss); itr!=boost::filesystem::directory_iterator(); ++itr)
+                     {
+                         string cur_day = itr->path().filename().string(); // filename only
+                         cout << cur_day << endl;
+                         if (boost::filesystem::is_directory(itr->status())) 
+                            daynumber = cur_day[3] - '0';
+                            cout << daynumber << endl;
+                            cout << daynumber_req << endl;
+                            if (daynumber % 2==0 && daynumber_req % 2==0 || daynumber % 2==1 && daynumber_req % 2==1)
+                                day = cur_day;
+                     }
+
+                     string registry_file = image_dir + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/img_info_LR.txt";
 
                 vector<string> registry_right;
                 vector <string> registry_left;
@@ -145,37 +198,37 @@ int main(int argc, char **argv)
 
                 int numImages = registry_left.size();
 
-                cout << "Found " << numImages << " images for " << category + objnumber << ": " << set << endl;
+                cout << "Found " << numImages << " images for " << category + objnumber + transf + day << endl;
 
                 // Output preparation
 
-                if (boost::filesystem::exists(out_dir_txtdata + "/" + category + "/" + category + objnumber + "/" + set)==false)
-                    boost::filesystem::create_directories(out_dir_txtdata + "/" + category + "/" + category + objnumber + "/" + set);
+                if (boost::filesystem::exists(out_dir_txtdata + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day)==false)
+                    boost::filesystem::create_directories(out_dir_txtdata + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day);
 
-                if (boost::filesystem::exists(out_dir_crop + "/" + category + "/" + category + objnumber + "/" + set)==false)
-                    boost::filesystem::create_directories(out_dir_crop + "/" + category + "/" + category + objnumber + "/" + set);
+                if (boost::filesystem::exists(out_dir_crop + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day)==false)
+                    boost::filesystem::create_directories(out_dir_crop + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day);
 
-                if (boost::filesystem::exists(out_dir_bmask + "/" + category + "/" + category + objnumber + "/" + set)==false)
-                    boost::filesystem::create_directories(out_dir_bmask + "/" + category + "/" + category + objnumber + "/" + set);
+                if (boost::filesystem::exists(out_dir_bmask + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day)==false)
+                    boost::filesystem::create_directories(out_dir_bmask + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day);
 
-                if (boost::filesystem::exists(out_dir_visualization + "/" + category + "/" + category + objnumber + "/" + set)==false)
-                    boost::filesystem::create_directories(out_dir_visualization + "/" + category + "/" + category + objnumber + "/" + set);
+                if (boost::filesystem::exists(out_dir_visualization + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day)==false)
+                    boost::filesystem::create_directories(out_dir_visualization + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day);
 
                 // Blob extraction
 
                 int countFails = 0;
 
                 ofstream outfile;
-                std::string out_filename = out_dir_txtdata + "/" + category + "/" + category + objnumber + "/" + set + "/centroid_bbox.txt";
+                std::string out_filename = out_dir_txtdata + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/centroid_bbox.txt";
                 outfile.open (out_filename.c_str());
 
                 for (int i = 0; i < numImages; i++)
                 {
 
-                    string disp_path = in_dir + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_right[i];
+                    string disp_path = in_dir + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/" + registry_right[i];
                     cv::Mat disp = cv::imread(disp_path + in_ext);
 
-                    string image_path = image_dir + "/" + category + "/" + category + objnumber + "/" + set + "/left/" + registry_left[i];
+                    string image_path = image_dir + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/left/" + registry_left[i];
                     cv::Mat image = cv::imread(image_path + in_ext);
 
                     std::vector<int> bbox;
@@ -193,7 +246,7 @@ int main(int argc, char **argv)
 
                     cv::namedWindow("bmask", cv::WINDOW_AUTOSIZE);
                     cv::imshow( "bmask", bmask );
-                    cv::imwrite(out_dir_bmask + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_right[i] + out_ext, bmask);
+                    cv::imwrite(out_dir_bmask + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/" + registry_right[i] + out_ext, bmask);
 
                     // crop
 
@@ -215,7 +268,7 @@ int main(int argc, char **argv)
 
                     cv::namedWindow("crop", cv::WINDOW_AUTOSIZE);
                     cv::imshow( "crop", image(imBox) );
-                    cv::imwrite(out_dir_crop + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_right[i] + out_ext, image(imBox).clone());
+                    cv::imwrite(out_dir_crop + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/" + registry_right[i] + out_ext, image(imBox).clone());
 
                     // txtdata
 
@@ -238,7 +291,7 @@ int main(int argc, char **argv)
                     cv::rectangle(image, imBox, green, 2);
                     cv::circle(image, cv::Point(centroid[0], centroid[1]), 4, green, -1);
                     cv::imshow( "view", image );
-                    cv::imwrite(out_dir_visualization + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_right[i] + out_ext, image);
+                    cv::imwrite(out_dir_visualization + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/" + registry_right[i] + out_ext, image);
 
                     cv::waitKey(100);
 
@@ -250,6 +303,8 @@ int main(int argc, char **argv)
             }
         }
     }
+
+}
 
  return 0;
 

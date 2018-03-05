@@ -119,25 +119,56 @@ string text(double value)
 int main (int argc, char** argv) {
 
     // Working directory containing the images and the results
-    string root_dir = "/media/giulia/DATA/demoDay";
+    string root_dir = "/data/DATASETS/iCubWorld";
 
     // Choose the categories, object instances and train/test sets from which extract the disparity
 
     vector <string> categories;
-    categories.push_back("mug");
-    categories.push_back("flower");
+    //categories.push_back("mug");
+    //categories.push_back("flower");
     categories.push_back("book");
+    categories.push_back("cellphone");
+    /*categories.push_back("mouse");
+    categories.push_back("pencilcase");
+    categories.push_back("ringbinder");
+    categories.push_back("hairbrush");
+    categories.push_back("hairclip");
+    categories.push_back("perfume");
+    categories.push_back("sunglasses");
+    categories.push_back("wallet");
+    categories.push_back("flower");
+    categories.push_back("glass");
+    categories.push_back("mug");
+    categories.push_back("remote");
+    categories.push_back("soapdispenser");
+    categories.push_back("bodylotion");
+    categories.push_back("ovenglove");
+    categories.push_back("sodabottle");
+    categories.push_back("sprayer");
+    categories.push_back("squeezer");*/
 
     vector <string> objnumbers;
     objnumbers.push_back("1");
     objnumbers.push_back("2");
-    objnumbers.push_back("3");
+    /*objnumbers.push_back("3");
     objnumbers.push_back("4");
     objnumbers.push_back("5");
+    objnumbers.push_back("6");
+    objnumbers.push_back("7");
+    objnumbers.push_back("8");
+    objnumbers.push_back("9");
+    objnumbers.push_back("10");*/
 
-    vector <string> sets;
-    sets.push_back("train");
-    sets.push_back("test");
+    vector <string> transformations;
+    transformations.push_back("ROT2D");
+    transformations.push_back("ROT3D");
+    /*transformations.push_back("TRANSL");
+    transformations.push_back("MIX");
+    transformations.push_back("SCALE");*/
+
+    vector <int> days;
+    days.push_back(1);
+    days.push_back(2);
 
     // No need to change beyond this line if the folder tree of the dataset is formatted correctly
 
@@ -191,99 +222,120 @@ int main (int argc, char** argv) {
         {
             string objnumber = objnumbers[o];
 
-            for (int s=0; s<sets.size(); s++)
+            for (int t=0; t<transformations.size(); t++)
             {
-                string set = sets[s];
+                string transf = transformations[t];
 
-                string registry_file = image_dir + "/" + category + "/" + category + objnumber + "/" + set + "/img_info_LR.txt";
-
-                vector<string> registry_left;
-                vector<string> registry_right;
-                vector<string> registry_out;
-
-                ifstream infile;
-                string line;
-                infile.open (registry_file.c_str());
-
-                getline(infile,line);
-                while(!infile.eof())
+                for (int d=0; d<days.size(); d++)
                 {
-                    // Extract left and right image names from the registry
+                
+                     int daynumber_req = days[d];
+                     int daynumber;
+                     string day;
+                     string path_ss = image_dir + "/" + category + "/" + category + objnumber + "/" + transf;
 
-                    vector <string> tokens;
-                    split(tokens, line, boost::is_any_of(" "));
-                    string left_imgname = tokens[5].substr(0, tokens[5].size()-4);
-                    string right_imgname = tokens[0].substr(0, tokens[0].size()-4);
+                     for (boost::filesystem::directory_iterator itr(path_ss); itr!=boost::filesystem::directory_iterator(); ++itr)
+                     {
+                         string cur_day = itr->path().filename().string(); // filename only
+                         cout << cur_day << endl;
+                         if (boost::filesystem::is_directory(itr->status())) 
+                            daynumber = cur_day[3] - '0';
+                            cout << daynumber << endl;
+                            cout << daynumber_req << endl;
+                            if (daynumber % 2==0 && daynumber_req % 2==0 || daynumber % 2==1 && daynumber_req % 2==1)
+                                day = cur_day;
+                     }
 
-                    registry_left.push_back("left/" + left_imgname);
-                    registry_right.push_back("right/" + right_imgname);
+                     string registry_file = image_dir + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/img_info_LR.txt";
 
-                    // We choose to call the output disparity as the left image
-                    registry_out.push_back(right_imgname);
+                     vector<string> registry_left;
+                     vector<string> registry_right;
+                     vector<string> registry_out;
 
-                    getline(infile,line);
-                }
-                infile.close();
+                     ifstream infile;
+                     string line;
+                     infile.open (registry_file.c_str());
 
-                int num_images = registry_left.size();
+                     getline(infile,line);
+                     while(!infile.eof())
+                     {
+                        // Extract left and right image names from the registry
 
-                cout << "Found " << num_images << " images for " << category + objnumber << ": " << set << endl;
+                        vector <string> tokens;
+                        split(tokens, line, boost::is_any_of(" "));
+                        string left_imgname = tokens[5].substr(0, tokens[5].size()-4);
+                        string right_imgname = tokens[0].substr(0, tokens[0].size()-4);
 
-                // Output preparation
+                        registry_left.push_back("left/" + left_imgname);
+                        registry_right.push_back("right/" + right_imgname);
 
-                if (boost::filesystem::exists(out_dir + "/" + category + "/" + category + objnumber + "/" + set)==false)
-                    boost::filesystem::create_directories(out_dir + "/" + category + "/" + category + objnumber + "/" + set);
+                        // We choose to call the output disparity as the left image
+                        registry_out.push_back(right_imgname);
 
-                // Input matrices
-                cv::Mat imL, imR;
+                        getline(infile,line);
+                    }
+                    infile.close();
 
-                // Auxiliary and output matrices
-                cv::Mat disp_elas, map_elas;
+                    int num_images = registry_left.size();
 
-                for (int i=0; i<num_images; i++)
-                {
+                    cout << "Found " << num_images << " images for " << category + objnumber + transf + day << endl;
 
-                    // Read image pair
+                    // Output preparation
 
-                    imL = cv::imread(in_dir + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_left[i] + in_ext);
-                    imR = cv::imread(in_dir + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_right[i] + in_ext);
+                    if (boost::filesystem::exists(out_dir + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day)==false)
+                        boost::filesystem::create_directories(out_dir + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day);
 
-                    int numberOfDisparities = (imL.cols<=320)?96:128;;
+                    // Input matrices
+                    cv::Mat imL, imR;
 
-                    // Rectify image pair
+                    // Auxiliary and output matrices
+                    cv::Mat disp_elas, map_elas;
 
-                    cv::Mat img1r, img2r;
-                    Size img_size = imL.size();
-                    cv::stereoRectify(Kleft, zeroDist, Kright, zeroDist, img_size, R0, T0, RLrect, RRrect, PLrect, PRrect, Q, -1);
-                    cv::initUndistortRectifyMap(Kleft, zeroDist, RLrect, PLrect, img_size, CV_32FC1, map11, map12);
-                    cv::initUndistortRectifyMap(Kright,  zeroDist, RRrect, PRrect, img_size, CV_32FC1, map21, map22);
-                    cv::remap(imL, img1r, map11, map12, cv::INTER_LINEAR);
-                    cv::remap(imR, img2r, map21, map22, cv::INTER_LINEAR);
+                    for (int i=0; i<num_images; i++)
+                    {
 
-                    // Visualize rectified images
+                        // Read image pair
 
-                    namedWindow("RectL", CV_WINDOW_AUTOSIZE );
-                    imshow("RectL", img1r );
-                    namedWindow("RectR", CV_WINDOW_AUTOSIZE );
-                    imshow("RectR", img2r );
+                        imL = cv::imread(in_dir + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/" + registry_left[i] + in_ext);
+                        imR = cv::imread(in_dir + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/" + registry_right[i] + in_ext);
 
-                    // Compute disparity
+                        int numberOfDisparities = (imL.cols<=320)?96:128;;
 
-                    elaswrap->compute_disparity(img1r, img2r, disp_elas, numberOfDisparities);
-                    map_elas = disp_elas * (255.0 / numberOfDisparities);
-                    map_elas.convertTo(map_elas, CV_8UC1);
+                        // Rectify image pair
 
-                    // Visualize disparity
+                        cv::Mat img1r, img2r;
+                        Size img_size = imL.size();
+                        cv::stereoRectify(Kleft, zeroDist, Kright, zeroDist, img_size, R0, T0, RLrect, RRrect, PLrect, PRrect, Q, -1);
+                        cv::initUndistortRectifyMap(Kleft, zeroDist, RLrect, PLrect, img_size, CV_32FC1, map11, map12);
+                        cv::initUndistortRectifyMap(Kright,  zeroDist, RRrect, PRrect, img_size, CV_32FC1, map21, map22);
+                        cv::remap(imL, img1r, map11, map12, cv::INTER_LINEAR);
+                        cv::remap(imR, img2r, map21, map22, cv::INTER_LINEAR);
 
-                    cv::namedWindow( "ELAS", cv::WINDOW_AUTOSIZE);
-                    cv::imshow( "ELAS", map_elas );
-                    cv::waitKey(1);
+                        // Visualize rectified images
 
-                    // Save disparity
+                        namedWindow("RectL", CV_WINDOW_AUTOSIZE );
+                        imshow("RectL", img1r );
+                        namedWindow("RectR", CV_WINDOW_AUTOSIZE );
+                        imshow("RectR", img2r );
 
-                    cv::cvtColor(map_elas, map_elas, CV_GRAY2BGR);
-                    cv::imwrite(out_dir + "/" + category + "/" + category + objnumber + "/" + set + "/" + registry_out[i] + out_ext, map_elas);
+                        // Compute disparity
 
+                        elaswrap->compute_disparity(img1r, img2r, disp_elas, numberOfDisparities);
+                        map_elas = disp_elas * (255.0 / numberOfDisparities);
+                        map_elas.convertTo(map_elas, CV_8UC1);
+
+                        // Visualize disparity
+
+                        cv::namedWindow( "ELAS", cv::WINDOW_AUTOSIZE);
+                        cv::imshow( "ELAS", map_elas );
+                        cv::waitKey(1);
+
+                        // Save disparity
+
+                        cv::cvtColor(map_elas, map_elas, CV_GRAY2BGR);
+                        cv::imwrite(out_dir + "/" + category + "/" + category + objnumber + "/" + transf + "/" + day + "/" + registry_out[i] + out_ext, map_elas);
+    
+                    }
                 }
             }
         }
